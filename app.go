@@ -211,9 +211,13 @@ func (app *App) Run(mws ...MiddleWare) {
 	if BConfig.Listen.EnableHTTP {
 		go func() {
 			app.Server.Addr = addr
-			logs.Info("http server Running on http://%s", app.Server.Addr)
-			if BConfig.Listen.ListenTCP4 {
-				ln, err := net.Listen("tcp4", app.Server.Addr)
+			if BConfig.Listen.HTTPPort == 0 && addr[len(addr)-5:] == ".sock" { //个人自定义功能，为了使用unix sock监听
+				logs.Info("http server Running on unix://%s", app.Server.Addr)
+				// remove the Socket file before start
+				if utils.FileExists(addr) {
+					os.Remove(addr)
+				}
+				ln, err := net.Listen("unix", app.Server.Addr)
 				if err != nil {
 					logs.Critical("ListenAndServe: ", err)
 					time.Sleep(100 * time.Microsecond)
@@ -227,10 +231,27 @@ func (app *App) Run(mws ...MiddleWare) {
 					return
 				}
 			} else {
-				if err := app.Server.ListenAndServe(); err != nil {
-					logs.Critical("ListenAndServe: ", err)
-					time.Sleep(100 * time.Microsecond)
-					endRunning <- true
+				logs.Info("http server Running on http://%s", app.Server.Addr)
+				if BConfig.Listen.ListenTCP4 {
+					ln, err := net.Listen("tcp4", app.Server.Addr)
+					if err != nil {
+						logs.Critical("ListenAndServe: ", err)
+						time.Sleep(100 * time.Microsecond)
+						endRunning <- true
+						return
+					}
+					if err = app.Server.Serve(ln); err != nil {
+						logs.Critical("ListenAndServe: ", err)
+						time.Sleep(100 * time.Microsecond)
+						endRunning <- true
+						return
+					}
+				} else {
+					if err := app.Server.ListenAndServe(); err != nil {
+						logs.Critical("ListenAndServe: ", err)
+						time.Sleep(100 * time.Microsecond)
+						endRunning <- true
+					}
 				}
 			}
 		}()
