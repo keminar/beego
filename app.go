@@ -211,7 +211,7 @@ func (app *App) Run(mws ...MiddleWare) {
 	if BConfig.Listen.EnableHTTP {
 		go func() {
 			app.Server.Addr = addr
-			if BConfig.Listen.HTTPPort == 0 && addr[len(addr)-5:] == ".sock" { //个人自定义功能，为了使用unix sock监听
+			if BConfig.Listen.HTTPPort == 0 && strings.HasSuffix(addr, ".sock") { //个人自定义功能，为了使用unix sock监听
 				logs.Info("http server Running on unix://%s", app.Server.Addr)
 				// remove the Socket file before start
 				if utils.FileExists(addr) {
@@ -224,6 +224,7 @@ func (app *App) Run(mws ...MiddleWare) {
 					endRunning <- true
 					return
 				}
+				os.Chmod(addr, 0766) //要让其它程序可读可写
 				if err = app.Server.Serve(ln); err != nil {
 					logs.Critical("ListenAndServe: ", err)
 					time.Sleep(100 * time.Microsecond)
